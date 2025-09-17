@@ -1,0 +1,17 @@
+mlops-monitoring-pipeline/
+├── .gitignore
+├── .dvc/
+├── .dvcignore
+├── data/
+│   ├── original_data.csv
+│   ├── data_drifting.csv
+│   └── concept_drifting.csv
+├── dvc_pipelines/
+├── models/
+├── src/
+│   ├── __init__.py
+│   ├── generate_data.py
+│   ├── train_linear_model.py
+│   └── (其他腳本將在後續步驟添加)
+├── poetry.lock
+└── pyproject.toml
