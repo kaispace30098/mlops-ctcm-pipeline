@@ -6,6 +6,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
 import mlflow
 import mlflow.sklearn
+import dvc.api
+import yaml
 
 def train_and_log_model(data_path, experiment_name="Model Monitoring Project"):
     """
@@ -25,6 +27,22 @@ def train_and_log_model(data_path, experiment_name="Model Monitoring Project"):
         # Log the data path as a parameter
         mlflow.log_param("data_path", data_path)
         
+        # Log the DVC data version (DVC file hash)
+        dvc_version = "N/A"
+        dvc_file_path = f"{data_path}.dvc"
+        if os.path.exists(dvc_file_path):
+            try:
+                with open(dvc_file_path, 'r') as f:
+                    dvc_meta = yaml.safe_load(f)
+                    dvc_version = dvc_meta['outs'][0]['md5']
+                print(f"Logged DVC data version: {dvc_version}")
+            except Exception as e:
+                print(f"Failed to parse DVC file: {e}")
+        else:
+            print(f"DVC file not found at {dvc_file_path}")
+
+        mlflow.log_param("data_version", dvc_version)
+
         # Load data
         try:
             df = pd.read_csv(data_path)
