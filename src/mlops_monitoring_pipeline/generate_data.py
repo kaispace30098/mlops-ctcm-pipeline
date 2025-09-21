@@ -1,11 +1,11 @@
 import numpy as np
 import pandas as pd
 import os
+import argparse
 
 def generate_linear_data(version, num_samples=1000):
     """
     Generates the first and second datasets (linear relationship, different x distributions).
-    All datasets will now have both x1 and x2 features.
     """
     # Set the mean for x1 based on the version
     if version == 'v1':
@@ -18,7 +18,7 @@ def generate_linear_data(version, num_samples=1000):
     # Generate data
     np.random.seed(42)
     x1 = np.random.normal(loc=mean, scale=2, size=num_samples)
-    x2 = np.random.normal(loc=5, scale=1, size=num_samples) # x2 is consistent across datasets
+    x2 = np.random.normal(loc=5, scale=1, size=num_samples)
     noise = np.random.normal(loc=0, scale=1, size=num_samples)
     y = 5 * x1 + 10 * x2 + 2 + noise
 
@@ -47,24 +47,30 @@ def save_data(df, filename):
     """
     Saves the DataFrame as a CSV file to the data directory.
     """
-    # Adjusted path to go to the project root's 'data' directory
-    data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data')
+    # Corrected path to navigate from the script location to the project root
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(os.path.dirname(script_dir))
+    data_dir = os.path.join(project_root, 'data')
     os.makedirs(data_dir, exist_ok=True)
     filepath = os.path.join(data_dir, filename)
     df.to_csv(filepath, index=False)
     print(f"Data saved to: {filepath}")
 
 if __name__ == '__main__':
-    # Generate and save the original dataset
-    df_original = generate_linear_data('v1')
-    save_data(df_original, 'original_data.csv')
+    parser = argparse.ArgumentParser(description="Generate a specific type of simulated dataset.")
+    parser.add_argument('data_type', choices=['original', 'data_drifting', 'concept_drifting'],
+                        help="The type of data to generate.")
+    args = parser.parse_args()
 
-    # Generate and save the data drifting dataset
-    df_data_drifting = generate_linear_data('v2')
-    save_data(df_data_drifting, 'data_drifting.csv')
+    output_filename = 'current_data.csv'
     
-    # Generate and save the concept drifting dataset
-    df_concept_drifting = generate_concept_drift_data()
-    save_data(df_concept_drifting, 'concept_drifting.csv')
+    if args.data_type == 'original':
+        df = generate_linear_data('v1')
+    elif args.data_type == 'data_drifting':
+        df = generate_linear_data('v2')
+    elif args.data_type == 'concept_drifting':
+        df = generate_concept_drift_data()
 
-    print("\nAll simulated datasets have been successfully generated and saved to the data/ directory.")
+    save_data(df, output_filename)
+
+    print(f"\nSuccessfully generated '{args.data_type}' data to {output_filename}.")

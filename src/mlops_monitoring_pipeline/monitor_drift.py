@@ -69,8 +69,9 @@ def train_and_log_model(data_path, experiment_name="Model Monitoring Project"):
         mlflow.log_metric("mse", mse)
         print(f"Logged MSE: {mse}")
         
-        # Corrected: Use `name` instead of `artifact_path`
-        mlflow.sklearn.log_model(model, name="linear-regression-model")
+        # FIX: Use `artifact_path` to specify the folder name for the model artifact.
+        # The `name` parameter is used for the Model Registry, which is a different concept.
+        mlflow.sklearn.log_model(model, artifact_path="linear-regression-model")
         print("Logged model as artifact.")
         
         # Get the run ID for later use
