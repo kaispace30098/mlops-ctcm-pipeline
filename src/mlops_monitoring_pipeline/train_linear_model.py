@@ -1,48 +1,35 @@
+# src/mlops_monitoring_pipeline/train_linear_model.py
 import pandas as pd
 import numpy as np
 import os
-from sklearn.linear_model import LinearRegression
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error
+import yaml
 import mlflow
 import mlflow.sklearn
-import dvc.api
-import yaml
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.metrics import mean_squared_error
 
-def train_and_log_model(data_path, experiment_name="Model Monitoring Project"):
+def train_and_log_linear_model(data_path, params_path="configs/params.yaml"):
     """
-    Trains a Linear Regression model and logs metrics and artifacts to MLflow.
-    
-    Args:
-        data_path (str): The file path to the training data.
-        experiment_name (str): The name of the MLflow experiment.
+    Performs hyperparameter tuning via GridSearchCV, trains the best model,
+    and logs the result to MLflow.
     """
-    # Set the MLflow experiment name
-    mlflow.set_experiment(experiment_name)
+    # Load configuration from params.yaml
+    with open(params_path, "r") as f:
+        params = yaml.safe_load(f)
+        train_params = params['train_params']
+        model_params = params['linear_model']
     
-    # Start an MLflow run to log all steps
+    # Set the MLflow experiment
+    mlflow.set_experiment(train_params['experiment_name'])
+    
+    # Start a new MLflow run
     with mlflow.start_run():
-        print(f"Starting MLflow run for experiment: {experiment_name}")
+        print("Starting MLflow run for Linear Regression model...")
         
-        # Log the data path as a parameter
-        mlflow.log_param("data_path", data_path)
+        # Log all training parameters
+        mlflow.log_params(train_params)
         
-        # Log the DVC data version (DVC file hash)
-        dvc_version = "N/A"
-        dvc_file_path = f"{data_path}.dvc"
-        if os.path.exists(dvc_file_path):
-            try:
-                with open(dvc_file_path, 'r') as f:
-                    dvc_meta = yaml.safe_load(f)
-                    dvc_version = dvc_meta['outs'][0]['md5']
-                print(f"Logged DVC data version: {dvc_version}")
-            except Exception as e:
-                print(f"Failed to parse DVC file: {e}")
-        else:
-            print(f"DVC file not found at {dvc_file_path}")
-
-        mlflow.log_param("data_version", dvc_version)
-
         # Load data
         try:
             df = pd.read_csv(data_path)
@@ -50,45 +37,51 @@ def train_and_log_model(data_path, experiment_name="Model Monitoring Project"):
             print(f"Error: Data file not found at {data_path}")
             return
             
-        # Prepare features and target
         X = df[['x1', 'x2']]
         y = df['y']
         
-        # Split data for training and evaluation
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=train_params['test_size'], random_state=train_params['random_state']
+        )
         
-        # Train the model
+        # Define and run GridSearchCV for hyperparameter tuning
         model = LinearRegression()
-        model.fit(X_train, y_train)
+        grid_search = GridSearchCV(
+            estimator=model,
+            param_grid=model_params['grid_search'],
+            scoring='neg_mean_squared_error',
+            cv=5
+        )
+        grid_search.fit(X_train, y_train)
         
-        # Make predictions and evaluate
-        y_pred = model.predict(X_test)
-        mse = mean_squared_error(y_test, y_pred)
+        best_model = grid_search.best_estimator_
         
-        # Log metrics and model
-        mlflow.log_metric("mse", mse)
-        print(f"Logged MSE: {mse}")
+        # Log the best hyperparameters and score
+        mlflow.log_params(grid_search.best_params_)
+        mlflow.log_metric("best_mse", -grid_search.best_score_)
+        print(f"Logged best hyperparameters: {grid_search.best_params_}")
+        print(f"Logged best cross-validation MSE: {-grid_search.best_score_}")
         
-        # Corrected: Use `name` instead of `artifact_path`
-        mlflow.sklearn.log_model(model, name="linear-regression-model")
-        print("Logged model as artifact.")
+        # Make predictions and evaluate the best model on test set
+        y_pred = best_model.predict(X_test)
+        test_mse = mean_squared_error(y_test, y_pred)
         
-        # Get the run ID for later use
-        run_id = mlflow.active_run().info.run_id
-        print(f"MLflow run completed. Run ID: {run_id}")
+        # Log the final test metric
+        mlflow.log_metric("test_mse", test_mse)
+        print(f"Logged test MSE: {test_mse}")
         
-        return run_id
+        # Log and register the best model to MLflow Model Registry
+        mlflow.sklearn.log_model(
+            sk_model=best_model,
+            artifact_path=model_params['name'],
+            registered_model_name=model_params['name']
+        )
+        print("Logged and registered best model to MLflow Model Registry.")
 
 if __name__ == "__main__":
-    # Get the data directory path
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    
-    # Corrected path to navigate from the script location to the project root
     project_root = os.path.dirname(os.path.dirname(current_dir))
     data_dir = os.path.join(project_root, 'data')
-    
-    # The path should now point to 'current_data.csv'
     current_data_path = os.path.join(data_dir, 'current_data.csv')
     
-    # Run the training process for the original model
-    train_and_log_model(current_data_path)
+    train_and_log_linear_model(current_data_path)

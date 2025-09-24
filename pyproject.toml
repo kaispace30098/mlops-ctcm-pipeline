@@ -6,13 +6,16 @@ authors = [
     {name = "Tom Chang",email = "ckf30098@yahoo.com.tw"}
 ]
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.12"
 dependencies = [
     "dvc (>=3.63.0,<4.0.0)",
     "pandas (>=2.3.2,<3.0.0)",
     "mlflow (>=3.3.2,<4.0.0)",
     "scikit-learn (>=1.7.2,<2.0.0)",
-    "dvc-s3 (>=3.2.2,<4.0.0)"
+    "dvc-s3 (>=3.2.2,<4.0.0)",
+    "evidently (==0.4.15)",
+    "pyyaml (>=6.0.2,<7.0.0)",
+    "torch (>=2.8.0,<3.0.0)"
 ]
 
 [tool.poetry]

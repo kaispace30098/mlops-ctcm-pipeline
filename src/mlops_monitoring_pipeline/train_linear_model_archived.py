@@ -1,0 +1,94 @@
+import pandas as pd
+import numpy as np
+import os
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error
+import mlflow
+import mlflow.sklearn
+import dvc.api
+import yaml
+
+def train_and_log_model(data_path, experiment_name="Model Monitoring Project"):
+    """
+    Trains a Linear Regression model and logs metrics and artifacts to MLflow.
+    
+    Args:
+        data_path (str): The file path to the training data.
+        experiment_name (str): The name of the MLflow experiment.
+    """
+    # Set the MLflow experiment name
+    mlflow.set_experiment(experiment_name)
+    
+    # Start an MLflow run to log all steps
+    with mlflow.start_run():
+        print(f"Starting MLflow run for experiment: {experiment_name}")
+        
+        # Log the data path as a parameter
+        mlflow.log_param("data_path", data_path)
+        
+        # Log the DVC data version (DVC file hash)
+        dvc_version = "N/A"
+        dvc_file_path = f"{data_path}.dvc"
+        if os.path.exists(dvc_file_path):
+            try:
+                with open(dvc_file_path, 'r') as f:
+                    dvc_meta = yaml.safe_load(f)
+                    dvc_version = dvc_meta['outs'][0]['md5']
+                print(f"Logged DVC data version: {dvc_version}")
+            except Exception as e:
+                print(f"Failed to parse DVC file: {e}")
+        else:
+            print(f"DVC file not found at {dvc_file_path}")
+
+        mlflow.log_param("data_version", dvc_version)
+
+        # Load data
+        try:
+            df = pd.read_csv(data_path)
+        except FileNotFoundError:
+            print(f"Error: Data file not found at {data_path}")
+            return
+            
+        # Prepare features and target
+        X = df[['x1', 'x2']]
+        y = df['y']
+        
+        # Split data for training and evaluation
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        
+        # Train the model
+        model = LinearRegression()
+        model.fit(X_train, y_train)
+        
+        # Make predictions and evaluate
+        y_pred = model.predict(X_test)
+        mse = mean_squared_error(y_test, y_pred)
+        
+        # Log metrics and model
+        mlflow.log_metric("mse", mse)
+        print(f"Logged MSE: {mse}")
+        
+        # Corrected: Use `name` instead of `artifact_path`
+        mlflow.sklearn.log_model(model, name="linear-regression-model")
+        print("Logged model as artifact.")
+        
+        # Get the run ID for later use
+        run_id = mlflow.active_run().info.run_id
+        print(f"MLflow run completed. Run ID: {run_id}")
+        
+        return run_id
+
+if __name__ == "__main__":
+    # Get the data directory path
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Corrected path to navigate from the script location to the project root
+    project_root = os.path.dirname(os.path.dirname(current_dir))
+    data_dir = os.path.join(project_root, 'data')
+    
+    # The path should now point to 'current_data.csv'
+    current_data_path = os.path.join(data_dir, 'current_data.csv')
+    
+    # Run the training process for the original model
+    train_and_log_model(current_data_path)
